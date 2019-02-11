@@ -23,6 +23,7 @@ import math
 from sklearn import metrics
 
 
+batch_size = 1
 #Loading the model
 model = VideoGaze(bs=batch_size,side=20)
 checkpoint = torch.load('model.pth.tar')
@@ -32,7 +33,7 @@ cudnn.benchmark = True
 
 
 #Reading input video
-video_name = 'video_test.mp4'
+video_name = 'video_test_3_EDIT.mp4'
 vid = imageio.get_reader(video_name,  'ffmpeg')
 fps = vid.get_meta_data()['fps']
 frame_list = []
@@ -43,8 +44,8 @@ print('Frame List Created')
 
 
 #Loading the features for tracking
-p_image = face_recognition.load_image_file("face.jpg")
-p_encoding = face_recognition.face_encodings(p_image)[0]
+#p_image = face_recognition.load_image_file("face.jpg")
+#p_encoding = face_recognition.face_encodings(p_image)[0]
 
 
 trans = transforms.ToTensor()
@@ -75,7 +76,11 @@ eyes = torch.zeros(N,3)
 eyes = eyes.cuda()
 
 
+w_fps = int(1)
 
+iter = 0
+iter_limit = 1000000
+p_encoding = None
 
 for i in range(len(frame_list)):
     print('Processing of frame %d out of %d' % (i,len(frame_list)))
@@ -88,16 +93,17 @@ for i in range(len(frame_list)):
         im = frame_list[i]
         h,w,c = im.shape
 
-
         #Detecting the person inside the image
         tmp_encodings = face_recognition.face_encodings(im)
+        if p_encoding is None:
+            if len(tmp_encodings) == 0:
+                continue
+            p_encoding = tmp_encodings[0]
         results = face_recognition.compare_faces(tmp_encodings, p_encoding)
         face_locations = face_recognition.face_locations(im)
         for id,face_local in enumerate(face_locations):
             if results[id]==True:
                 (top, right, bottom, left) = face_local
-
-
 
         #If detection, run the model
         if top:
@@ -171,7 +177,11 @@ for i in range(len(frame_list)):
             face_im = cv2.rectangle(frame_list[i].copy(), (left, top), (right, bottom), (0, 0, 255), 3)
             final_im = np.concatenate((face_im,tim),axis=1)
             target_writer.append_data(final_im)
-
+            
+            iter += 1
+            print(iter)
+            if iter == iter_limit:
+                break
 
 target_writer.close()
 
